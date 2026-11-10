@@ -54,7 +54,11 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(RANGE_RESOURCE[2:5])
         elif url.path == "/large":
-            n = int(parse_qs(url.query).get("n", [LARGE_DEFAULT])[0])
+            try:
+                n = int(parse_qs(url.query).get("n", [LARGE_DEFAULT])[0])
+            except ValueError:
+                self.reply(400, b'{"error":"n must be an integer"}', "application/json")
+                return
             self.reply(200, bytes(i & 0xFF for i in range(n)))
         else:
             self.reply(404, b'{"error":"not found"}', "application/json")

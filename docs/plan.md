@@ -9,8 +9,8 @@ below close items 6–10. Each step says which item it closes and what it needs.
 |---|---|---|---|---|
 | 1 | housekeeping: repository form, demo server in the repo, sanitised wifi_http README, third-party licence file | — | decision on the repository | done 2026-11-10, repository decision open |
 | 2 | interoperability fixes with tests, poisoned context after an error | 6 | — | done 2026-11-10 |
-| 3 | coverage-guided fuzzing with libFuzzer, request-builder harness | 6 | `sudo apt install clang` | open |
-| 4 | run on a real ESP32: REST example with GET, POST, streamed GET and keep-alive over nornNET | 7, 8 | the board on /dev/ttyUSB0 | open |
+| 3 | coverage-guided fuzzing with libFuzzer, request-builder harness | 6 | clang | done 2026-11-10 |
+| 4 | run on a real ESP32: REST example with GET, POST, streamed GET and keep-alive over nornNET | 7, 8 | the board on /dev/ttyUSB0 | done 2026-11-10 |
 | 5 | measurements on the target: linked flash with libgcc helpers, stack high-water, static RAM | 9 | step 4 | open |
 | 6 | decide request-body streaming: implement or document as deferred | 10 | decision | open |
 | 7 | documentation: contracts, README validation status, nornDocs chapter, Doxygen comments | 10 | steps 2–6 | open |
@@ -46,23 +46,23 @@ Accepted since 2026-11-10, each with a parser or builder test:
 
 ## 3. Fuzzing
 
-```
-sudo apt install clang
-make fuzz && cp -r tests/corpus build/corpus
-build/fuzz_parser -max_total_time=3600 build/corpus
-```
-
-Add `tests/fuzz_request.c` (method, target, host and header values from the fuzz input
-through `norn_http_build_request`), keep the interesting cases in `tests/corpus`, and
-record run time and result in `docs/measurements.md`.
+Done 2026-11-10: `tests/fuzz_parser.c` (mode byte selects HEAD, range, close, body
+limit) and `tests/fuzz_request.c` (asserts that every accepted request head is well
+formed) ran one hour each under libFuzzer with ASan and UBSan, no findings; the
+minimised corpora are in `tests/corpus/parser` and `tests/corpus/request` and cover
+99.5 % and 100 % of the lines. Result in `docs/measurements.md`. Rerun with
+`make fuzz-run` (FUZZ_SECONDS, default 3600) and `make fuzz-merge` after parser or
+builder changes.
 
 ## 4. Real ESP32
 
-Extend `examples/wifi_http` to the REST example the design's phase 4 asks for: GET
-`/hello`, POST JSON to `/api`, a streamed GET of 64 KiB from `/large` with a 512-byte
-receive buffer verified by a checksum in `on_body`, and two requests on one socket to
-test keep-alive over nornNET. Serve with `python3 modules/nornHTTP/tools/demo_server.py`
-on the development machine and run from the nornRTOS root:
+Done 2026-11-10: nornRTOS `examples/wifi_http` is the REST example the design's phase 4
+asks for: GET `/hello`, POST JSON to `/api`, a 64 KiB GET from `/large` streamed through
+a 512-byte receive buffer with every byte verified in `on_body`, and a fourth request on
+the same socket (keep-alive) closed with Connection: close. Two runs on a NodeMCU-32S,
+all pass; recorded in `docs/measurements.md` and the example's README. Serve with
+`python3 modules/nornHTTP/tools/demo_server.py` on the development machine and run from
+the nornRTOS root:
 
 ```
 make APP=wifi_http BOARD=esp32 upload PORT=/dev/ttyUSB0

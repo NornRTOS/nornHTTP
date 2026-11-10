@@ -5,7 +5,7 @@ WARN = -std=c99 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror
 SRC = src/norn_http.c src/norn_http_request.c src/norn_http_parser.c src/norn_http_stream.c
 OBJ = $(SRC:src/%.c=build/%.o)
 SANITIZE ?= -fsanitize=address,undefined -fno-omit-frame-pointer
-.PHONY: all test host-test fuzz analyze size
+.PHONY: all test host-test fuzz fuzz-run fuzz-merge analyze size
 all: build/libnornHTTP.a
 build:
 	mkdir -p $@
@@ -17,8 +17,24 @@ build/test_http: tests/test_http.c $(SRC) include/*.h src/internal.h | build
 	$(CC) $(WARN) -g -O1 $(SANITIZE) -Iinclude tests/test_http.c $(SRC) -o $@
 test host-test: build/test_http
 	./build/test_http
-fuzz: | build
-	clang $(WARN) -g -O1 -fsanitize=fuzzer,address,undefined -Iinclude tests/fuzz_parser.c $(SRC) -o build/fuzz_parser
+FUZZ_CC ?= clang
+fuzz: build/fuzz_parser build/fuzz_request
+build/fuzz_parser: tests/fuzz_parser.c $(SRC) include/*.h src/internal.h | build
+	$(FUZZ_CC) $(WARN) -g -O1 -fsanitize=fuzzer,address,undefined -Iinclude tests/fuzz_parser.c $(SRC) -o $@
+build/fuzz_request: tests/fuzz_request.c $(SRC) include/*.h src/internal.h | build
+	$(FUZZ_CC) $(WARN) -g -O1 -fsanitize=fuzzer,address,undefined -Iinclude tests/fuzz_request.c $(SRC) -o $@
+# Coverage-guided runs on a writable copy of the seeds; new corpus entries are merged
+# back into tests/corpus afterwards (make fuzz-merge). FUZZ_SECONDS per harness.
+FUZZ_SECONDS ?= 3600
+fuzz-run: fuzz
+	rm -rf build/corpus && mkdir -p build/corpus/parser build/corpus/request
+	cp tests/corpus/parser/* build/corpus/parser/
+	cp tests/corpus/request/* build/corpus/request/
+	./build/fuzz_parser -max_total_time=$(FUZZ_SECONDS) -max_len=4096 build/corpus/parser > build/fuzz_parser.log 2>&1
+	./build/fuzz_request -max_total_time=$(FUZZ_SECONDS) -max_len=512 build/corpus/request > build/fuzz_request.log 2>&1
+fuzz-merge: fuzz
+	./build/fuzz_parser -merge=1 tests/corpus/parser build/corpus/parser
+	./build/fuzz_request -merge=1 tests/corpus/request build/corpus/request
 analyze: | build
 	@for source in $(SRC); do $(CC) $(WARN) -fanalyzer -Iinclude -c $$source -o build/analyze_$$(basename $$source .c).o || exit 1; done
 size: all

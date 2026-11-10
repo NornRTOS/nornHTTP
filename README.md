@@ -27,9 +27,12 @@ make esp32-check              # ESP compiler on PATH, or set ESP_CC and ESP_SIZE
 
 If LeakSanitizer cannot run because the environment uses ptrace, run tests with
 `ASAN_OPTIONS=detect_leaks=0`; address and undefined-behaviour checks remain active.
-For coverage-guided fuzzing with Clang: `make fuzz`, then
-`build/fuzz_parser -max_total_time=60 tests/corpus` (use a writable corpus copy
-for longer runs). CMake is also provided:
+Coverage-guided fuzzing needs Clang: `make fuzz` builds `build/fuzz_parser` (the
+response parser; the first input byte selects HEAD, range, close and a small body
+limit) and `build/fuzz_request` (the request builder, checking that everything it
+accepts is a well-formed request head). `make fuzz-run FUZZ_SECONDS=3600` runs both
+on a copy of `tests/corpus`, and `make fuzz-merge` folds the new entries back.
+CMake is also provided:
 
 ```sh
 cmake -S . -B build/cmake -DNORN_HTTP_TESTS=ON -DNORN_HTTP_SANITIZE=ON
@@ -101,12 +104,14 @@ network task or socket event callback. See [contracts](docs/contracts.md).
 
 ## Validation status
 
-Linux unit, sanitizer, deterministic mutation, adapter mapping and local-server
-tests have passed. The core has been cross-compiled for ESP32. See
-[measurements](docs/measurements.md) for sizes and limitations.
+Linux unit, sanitizer, deterministic mutation, one hour of coverage-guided fuzzing
+per harness, adapter mapping and local-server tests have passed. On a real ESP32
+the nornRTOS example `examples/wifi_http` runs GET, JSON POST, a 64 KiB streamed
+download and keep-alive over nornWIFI and nornNET against `tools/demo_server.py`.
+See [measurements](docs/measurements.md) for sizes, coverage and limitations.
 
-Physical ESP32 execution, end-to-end nornNET/TLS communication, runtime stack
-high-water measurements and sustained coverage-guided fuzzing are still needed
-before declaring the design document's complete stable-release criteria met.
+TLS communication and the ESP32 flash and stack measurements are still needed
+before declaring the design document's complete stable-release criteria met; the
+steps are in [docs/plan.md](docs/plan.md).
 Request-body streaming is deferred; request bodies are caller-owned contiguous
 spans. No redirects, compression, cookies, HTTP/2, server, DNS or TLS engine.

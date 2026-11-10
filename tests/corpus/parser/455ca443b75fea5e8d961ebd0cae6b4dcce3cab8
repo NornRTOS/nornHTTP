@@ -1,0 +1,5 @@
+€HTTP/1.0 106
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 106
+Content-Range:bytes 2-4/10

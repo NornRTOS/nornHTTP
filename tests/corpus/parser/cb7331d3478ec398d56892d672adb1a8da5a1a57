@@ -1,0 +1,48 @@
+
+HTTP/1.0 103
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103 
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 106
+Content-Range:bytes 2-4/10
+
+HTTP/1.0 103 .
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103 !
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103 ÿ6
+Content-Range: bytes 1-4/10
+
+HTTP/1.0 103 t6
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103 .
+Content-Range:bytes 2-4/10
+
+HTTP/1.0 103 :
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103
+Content-Range:bytes 2-4/10
+
+HTTP/1.0 103 6
+Content-Range:bytes 2-4/10
+
+HTTP/1.0 103 0
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103 ÿ
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103 
+Content-Range: bytes 1-4/10
+
+HTTP/1.0 103
+Content-Range: bytes 2-4/10

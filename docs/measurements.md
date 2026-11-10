@@ -49,17 +49,32 @@ stack measurements and final linked image sizes remain release work.
   clock wrap, connection reuse and unexpected trailing data.
 - Linux ASan + UBSan, GCC analyzer, 100,000 deterministic parser mutations.
   LeakSanitizer disabled because this execution environment uses ptrace.
+- Coverage-guided fuzzing 2026-11-10 with Clang 19 libFuzzer, ASan and UBSan, one
+  hour per harness: the response parser with four workers (1.86 billion runs,
+  775 edges) and the request builder with two workers (1.53 billion runs,
+  426 edges). No crash, no sanitizer report, no timeout. The minimised corpora in
+  `tests/corpus` (634 and 353 inputs) replay the full coverage; llvm-cov on them
+  shows 99.5 % of the parser's lines (the one miss is the unreachable default at
+  the end of `line()`) and 100 % of the request builder's lines, 97.7 % and 91.7 %
+  of the regions.
 - nornNET adapter compiled against the actual sibling headers, with mocked
   nornNET send/receive result mapping tests.
 - tools/demo_server.py as HTTP/1.1: 64 KiB and 2 MiB GET, bytewise chunked
   response with extension and whitespace, Range GET, JSON POST, small JSON GET;
   the same handler as HTTP/1.0 for the non-chunked, non-range paths.
 - ESP32 core cross-compilation with warnings treated as errors.
+- Real ESP32 (NodeMCU-32S) over Wi-Fi with nornWIFI and nornNET, 2026-11-10:
+  nornRTOS `examples/wifi_http` against `tools/demo_server.py`; GET, JSON POST,
+  a 64 KiB download streamed through a 512-byte receive buffer with every byte
+  verified, and a fourth request on the same connection (keep-alive), then
+  Connection: close. Two runs, all pass. Nothing in nornCore, nornNET or nornWIFI
+  changed.
 
 ## Remaining validation
 
-No physical ESP32, nornNET end-to-end HTTP session or TLS session was run.
-Clang/libFuzzer and CMake are not installed in the current environment, so their
-provided build paths have not been executed. The deterministic mutation suite
-is a smoke test, not a substitute for sustained coverage-guided fuzzing.
-There is no claim of exhaustive error-path coverage or stable-release signoff.
+No TLS session was run. Runtime stack high-water and linked flash on the ESP32 are
+still to be measured (plan step 5). CMake is not installed, so that build path has
+not been executed. The fuzzing above is a
+first hour per harness; rerun `make fuzz-run` after every parser or builder change
+and `make fuzz-merge` to keep the corpus. There is no stable-release signoff yet;
+see `plan.md`.

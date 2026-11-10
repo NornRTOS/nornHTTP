@@ -1,0 +1,25 @@
+
+HTTP/1.0 103
+Content-Range:bytes 2-4/10
+
+HTTP/1.0 103 
+Content-Range:bytes 2-4/10
+
+HTTP/1.0 102
+Content-Range:bytes 2-4/10
+
+HTTP/1.0 103
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103
+Content-Range:bytes 2-4/10
+
+HTTP/1.0 103
+Content-Range: bytes 2-4/10
+
+HTTP/1.0 103
+Content-Range: bytes 2-4/30
+
+HTTP/1.0 103
+Content-Range:bytes t1
+
