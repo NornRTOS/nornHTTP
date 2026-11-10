@@ -107,11 +107,13 @@ network task or socket event callback. See [contracts](docs/contracts.md).
 Linux unit, sanitizer, deterministic mutation, one hour of coverage-guided fuzzing
 per harness, adapter mapping and local-server tests have passed. On a real ESP32
 the nornRTOS example `examples/wifi_http` runs GET, JSON POST, a 64 KiB streamed
-download and keep-alive over nornWIFI and nornNET against `tools/demo_server.py`.
-See [measurements](docs/measurements.md) for sizes, coverage and limitations.
+download and keep-alive over nornWIFI and nornNET against `tools/demo_server.py`;
+linked there, HTTP costs 6.9 KB of flash (about 5.3 KB library), no static RAM
+beyond the 184-byte context, and at most 160 bytes more task stack than the Wi-Fi
+join and TCP connect already use. See [measurements](docs/measurements.md) for
+sizes, coverage and limitations.
 
-TLS communication and the ESP32 flash and stack measurements are still needed
-before declaring the design document's complete stable-release criteria met; the
-steps are in [docs/plan.md](docs/plan.md).
+TLS communication is still needed before declaring the design document's complete
+stable-release criteria met; the steps are in [docs/plan.md](docs/plan.md).
 Request-body streaming is deferred; request bodies are caller-owned contiguous
 spans. No redirects, compression, cookies, HTTP/2, server, DNS or TLS engine.

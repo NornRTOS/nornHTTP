@@ -11,7 +11,7 @@ below close items 6–10. Each step says which item it closes and what it needs.
 | 2 | interoperability fixes with tests, poisoned context after an error | 6 | — | done 2026-11-10 |
 | 3 | coverage-guided fuzzing with libFuzzer, request-builder harness | 6 | clang | done 2026-11-10 |
 | 4 | run on a real ESP32: REST example with GET, POST, streamed GET and keep-alive over nornNET | 7, 8 | the board on /dev/ttyUSB0 | done 2026-11-10 |
-| 5 | measurements on the target: linked flash with libgcc helpers, stack high-water, static RAM | 9 | step 4 | open |
+| 5 | measurements on the target: linked flash with libgcc helpers, stack high-water, static RAM | 9 | step 4 | done 2026-11-10 |
 | 6 | decide request-body streaming: implement or document as deferred | 10 | decision | open |
 | 7 | documentation: contracts, README validation status, nornDocs chapter, Doxygen comments | 10 | steps 2–6 | open |
 | 8 | final host suite, examples build, tag v0.1.0, point the submodule | — | steps 1–7 | open |
@@ -81,6 +81,14 @@ make APP=wifi_http BOARD=esp32 monitor PORT=/dev/ttyUSB0
 - Write the table into `docs/measurements.md` with date and toolchain version, the
   library separate from the application's buffers and from nornNET, as design
   section 6 asks.
+
+Result 2026-11-10 (section "Linked on the ESP32" in measurements.md): 6.9 KB of flash
+for HTTP in the example image, of which about 5.3 KB is the library; the libgcc
+helpers were already in the image. The library has no static RAM, the context is
+184 bytes, the example's buffers 1 176 bytes. The main task's high-water went from
+1 312 to at most 1 472 of 4 096 bytes with the four requests; the example prints both
+figures. The with/without comparison was done with a scratch copy of the example
+whose session is one raw TCP exchange, not kept in the repository.
 
 ## 6. Request-body streaming
 
