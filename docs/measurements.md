@@ -6,11 +6,11 @@ Reproduce with `make size`, `make esp32-check`, and `tests/footprint.c`.
 
 | Resource | Linux x86-64 | ESP32 Xtensa |
 | --- | ---: | ---: |
-| Core object text, including constant data | approximately 8.0 KB | approximately 5.4 KB |
+| Core object text, including constant data | approximately 8.3 KB | approximately 5.5 KB |
 | Mutable static data / BSS | 0 | 0 |
 | Parser context | 136 bytes | 96 bytes |
 | Full synchronous HTTP context (includes parser) | 280 bytes | 184 bytes |
-| Request | 88 bytes | 56 bytes |
+| Request | 104 bytes | 64 bytes |
 | Response | 56 bytes | 56 bytes |
 | Heap allocations | 0 | 0 |
 
@@ -44,7 +44,7 @@ link maps.
 
 | Flash | Bytes |
 | --- | ---: |
-| Whole image, difference with minus without HTTP | 6 912 |
+| Whole image, difference with minus without HTTP | 6 912 (7 020 with the request-body source added later the same day) |
 | of which the library: `norn_http.o`, `norn_http_parser.o`, `norn_http_request.o`, `norn_http_stream.o` | approximately 5 300 |
 | of which `norn_net_transport.o` (the nornNET adapter) | 169 |
 | of which the example's own HTTP glue (`sink`, `on_body`, `run`, `rest_session`) | 805 |
@@ -71,14 +71,14 @@ joins Wi-Fi, runs DHCP, connects and then runs the four requests (stack 4 096 by
 
 | Stack high-water of the main task | Bytes |
 | --- | ---: |
-| After Wi-Fi join, DHCP and TCP connect, before HTTP (three runs, identical) | 1 312 |
-| After the four requests (three runs) | 1 472, 1 328, 1 472 |
+| After Wi-Fi join, DHCP and TCP connect, before HTTP | 1 312 in three runs that needed a Wi-Fi reconnect, 1 200 in one that did not |
+| After the four requests (four runs) | 1 472, 1 328, 1 472, 1 376 |
 | Depth already used when `rest_session` is entered | 136 |
 | The HTTP session below its entry, including nornNET's send and receive path and the kernel's context frames | at most 1 336 |
 
-The run-to-run difference of 144 bytes is a context frame that lands on the task
-stack when a tick or a Wi-Fi event preempts the deepest point of the chain, not a
-property of nornHTTP. nornHTTP's own frames are small (`-fstack-usage`: 128 bytes for
+The run-to-run differences of 100 to 150 bytes come from the Wi-Fi join (a
+reconnect goes deeper) and from a context frame that lands on the task stack when a
+tick or a Wi-Fi event preempts the deepest point of the chain, not from nornHTTP. nornHTTP's own frames are small (`-fstack-usage`: 128 bytes for
 the request builder, 80 for the header parser, 64 for `norn_http_execute`; the deepest
 chain inside the library is about 240 bytes before libc and the transport); most of
 the 1.3 KB is nornNET's TCP path and the kernel running on the caller's stack. A task
@@ -99,6 +99,14 @@ that does what this example does is safe with 2 KB; the example keeps 4 KB.
   header/body/line limits and callback failure.
 - Mock transport partial I/O, timeout, repeated AGAIN, abrupt EOF, I/O errors,
   clock wrap, connection reuse and unexpected trailing data.
+- Request-body source (2026-11-10): every span size from 1 to 70 bytes and larger
+  than the request buffer through a 7-byte-per-send transport, the wire compared
+  byte for byte; failing and empty sources, transport failure during the body, zero
+  length, and mutual exclusion with the contiguous body. The POSIX example streams a
+  300 000-byte pattern POST in the integration test over HTTP/1.1 and HTTP/1.0. The
+  request fuzz harness gained the source variant and ran five more minutes
+  (60 million runs, 449 edges against 426 before, no findings); a merge added no
+  new inputs, the existing corpus already drives the source path.
 - Linux ASan + UBSan, GCC analyzer, 100,000 deterministic parser mutations.
   LeakSanitizer disabled because this execution environment uses ptrace.
 - Coverage-guided fuzzing 2026-11-10 with Clang 19 libFuzzer, ASan and UBSan, one
@@ -124,8 +132,12 @@ that does what this example does is safe with 2 KB; the example keeps 4 KB.
 
 ## Remaining validation
 
-No TLS session was run. The ESP32 numbers above are for one application and one
-toolchain version; repeat them when the parser or request builder changes. CMake is
+No TLS session was run. There is no chunked request body (unknown length); the
+body source needs the length up front. The ESP32 numbers above are for one
+application and one toolchain version; repeat them when the parser or request
+builder changes (the request-body source added 108 bytes of flash to the example
+image and no stack: `send_source` is inlined into `norn_http_execute`, frame still
+64 bytes). CMake is
 not installed, so that build path has not been executed. The fuzzing above is a
 first hour per harness; rerun `make fuzz-run` after every parser or builder change
 and `make fuzz-merge` to keep the corpus. There is no stable-release signoff yet;

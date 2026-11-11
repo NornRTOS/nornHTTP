@@ -16,6 +16,7 @@ CASES = [
     ("/chunked", "GET", b"abcde", False),
     ("/range", "GET", b"234", False),
     ("/api", "POST", b'{"item":42}', True),
+    ("/api", "POST 300000", bytes(i & 0xFF for i in range(300000)), True),   # streamed body source
     ("/hello", "GET", b'{"message":"Hello from the test server!"}', True),
 ]
 
@@ -26,7 +27,7 @@ def run(handler, cases):
     thread.start()
     try:
         for path, method, expected, _ in cases:
-            result = subprocess.run([str(EXECUTABLE), "127.0.0.1", str(server.server_port), path, method],
+            result = subprocess.run([str(EXECUTABLE), "127.0.0.1", str(server.server_port), path, *method.split()],
                                     capture_output=True, check=True, timeout=30)
             assert result.stdout == expected, (handler.protocol_version, path, result.stderr)
             reusable = b"reusable=1" in result.stderr

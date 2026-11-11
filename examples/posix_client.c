@@ -1,4 +1,6 @@
-/* Host demonstration: ./posix_client 127.0.0.1 8080 /path [GET|POST|PUT|...]
+/* Host demonstration: ./posix_client 127.0.0.1 8080 /path [GET|POST|PUT|...] [BYTES]
+ * POST without BYTES sends a small JSON body; with BYTES it streams that many bytes
+ * (byte i is i & 0xFF) through a body source, so no body buffer of that size exists.
  * Plain TCP only. Numeric IPv4 deliberately avoids introducing DNS in the core. */
 #define _POSIX_C_SOURCE 200809L
 #include "norn_http.h"
@@ -34,9 +36,16 @@ static uint32_t now_ms(void *arg) {
     return (uint32_t)((uint64_t)t.tv_sec*1000u+(uint64_t)t.tv_nsec/1000000u);
 }
 static int output(void *arg,const uint8_t *p,size_t n) { (void)arg; return fwrite(p,1,n,stdout)==n ? 0 : -1; }
+/* Body source for the streamed POST: generates the pattern one request buffer at a time. */
+static int pattern(void *arg,uint8_t *dst,size_t cap,size_t *written) {
+    size_t *at=arg,i;
+    for(i=0;i<cap;++i) dst[i]=(uint8_t)(*at+i);
+    *at+=cap; *written=cap; return 0;
+}
 int main(int argc,char **argv) {
     int fd,e; struct sockaddr_in addr; char line[512],request[1024],host[128]; uint8_t receive[1024];
     norn_http h; norn_http_config c={0}; norn_http_request q; norn_http_response r={0}; norn_http_header headers[2]; norn_http_transport t;
+    size_t streamed=0;
     if(argc<4) { fprintf(stderr,"usage: %s IPv4 port path [method]\n",argv[0]); return 2; }
     memset(&addr,0,sizeof(addr)); addr.sin_family=AF_INET; addr.sin_port=htons((uint16_t)strtoul(argv[2],NULL,10));
     if(inet_pton(AF_INET,argv[1],&addr.sin_addr)!=1) return 2;
@@ -47,7 +56,10 @@ int main(int argc,char **argv) {
     c.receive_buffer=receive; c.receive_capacity=sizeof(receive); c.request_buffer=request; c.request_capacity=sizeof(request); c.timeout_ms=5000;
     (void)snprintf(host,sizeof(host),"%s:%s",argv[1],argv[2]);
     norn_http_request_init(&q,argc>4 ? argv[4] : "GET",argv[3],host,headers,2);
-    if(!strcmp(q.method,"POST")) {
+    if(!strcmp(q.method,"POST") && argc>5) {
+        (void)norn_http_add_header(&q,"Content-Type","application/octet-stream");
+        (void)norn_http_set_body_source(&q,pattern,&streamed,(size_t)strtoul(argv[5],NULL,10));
+    } else if(!strcmp(q.method,"POST")) {
         (void)norn_http_add_header(&q,"Content-Type","application/json");
         (void)norn_http_set_body(&q,"{\"item\":42}",11);
     }

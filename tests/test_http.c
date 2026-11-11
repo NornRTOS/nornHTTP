@@ -179,14 +179,68 @@ static void requests(void) {
     q.target="/\r\n"; assert(norn_http_build_request(&q,buf,sizeof(buf),&n)==NORN_HTTP_INVALID);
     q.target="/"; q.host="host\n"; assert(norn_http_build_request(&q,buf,sizeof(buf),&n)==NORN_HTTP_INVALID);
 }
-typedef struct { const char *wire; size_t at, sent, step; uint32_t now; int mode; } mock;
+typedef struct { const char *wire; size_t at, sent, step; uint32_t now; int mode; uint8_t out[4096]; } mock;
 static uint32_t now(void *arg) { mock *m=arg; return m->now++; }
 static int32_t send_mock(void *arg,const void *p,size_t n,uint32_t timeout) {
     mock *m=arg; assert(p && timeout); if(m->mode==1) return NORN_HTTP_IO_TIMEOUT;
     if(m->mode==2) return NORN_HTTP_IO_AGAIN;
     if(m->mode==3) return 0;
     if(n>m->step) n=m->step;
+    if(m->sent+n<=sizeof(m->out)) memcpy(m->out+m->sent,p,n);
     m->sent+=n; return (int32_t)n;
+}
+/* Request-body source: byte i of the body is i & 0xFF, delivered span bytes at a time
+ * (or whatever fits), failing after `fail_after` calls when that is nonzero. */
+static int32_t recv_mock(void *,void *,size_t,uint32_t);
+typedef struct { size_t at, span, calls, fail_after; bool empty; } source;
+static int body_source(void *arg, uint8_t *dst, size_t cap, size_t *written) {
+    source *s=arg; size_t i,n=s->span && s->span<cap ? s->span : cap;
+    if(s->fail_after && ++s->calls>s->fail_after) return -1;
+    if(s->empty) { *written=0; return 0; }
+    for(i=0;i<n;++i) dst[i]=(uint8_t)(s->at+i);
+    s->at+=n; *written=n; return 0;
+}
+static void source_tests(void) {
+    char linebuf[128],requestbuf[128]; uint8_t rx[128]; norn_http h; norn_http_config c;
+    norn_http_request q; norn_http_response r; sink s; source src; size_t span,i,head,n;
+    mock m={"HTTP/1.1 204 No Content\r\n\r\n",0,0,7,0,0,{0}};
+    norn_http_transport t={&m,send_mock,recv_mock,now};
+    memset(&c,0,sizeof(c)); memset(&s,0,sizeof(s));
+    norn_http_parser_config_init(&c.parser,linebuf,sizeof(linebuf)); c.parser.on_body=body; c.parser.callback_context=&s;
+    c.receive_buffer=rx; c.receive_capacity=sizeof(rx); c.request_buffer=requestbuf; c.request_capacity=sizeof(requestbuf); c.timeout_ms=1000;
+    /* The head alone, to know where the body starts on the wire. */
+    norn_http_request_init(&q,"PUT","/upload","test",NULL,0);
+    assert(!norn_http_set_body_source(&q,body_source,&src,1000));
+    assert(!norn_http_build_request(&q,requestbuf,sizeof(requestbuf),&head));
+    assert(memcmp(requestbuf,"PUT /upload HTTP/1.1\r\n",22)==0 && strstr(requestbuf,"Content-Length: 1000\r\n"));
+    /* Every span size, including spans larger than the request buffer, through a
+       transport that takes 7 bytes per send: the wire carries exactly the pattern. */
+    for(span=0;span<=70;span+=7) {
+        memset(&src,0,sizeof(src)); src.span=span; m.at=0; m.sent=0;
+        assert(!norn_http_init(&h,&c,&t) && !norn_http_execute(&h,&q,&r) && r.status==204 && r.reusable);
+        assert(m.sent==head+1000 && src.at==1000);
+        for(i=0;i<1000;++i) assert(m.out[head+i]==(uint8_t)i);
+    }
+    /* A source that fails, or offers nothing before the end, is CALLBACK and poisons. */
+    memset(&src,0,sizeof(src)); src.fail_after=3; m.at=0; m.sent=0;
+    assert(!norn_http_init(&h,&c,&t) && norn_http_execute(&h,&q,&r)==NORN_HTTP_CALLBACK && h.failed && !r.reusable);
+    memset(&src,0,sizeof(src)); src.empty=true; m.at=0; m.sent=0;
+    assert(!norn_http_init(&h,&c,&t) && norn_http_execute(&h,&q,&r)==NORN_HTTP_CALLBACK && h.failed);
+    assert(m.sent==head); /* nothing of the body went out */
+    /* A transport failure during the body is reported as such. */
+    memset(&src,0,sizeof(src)); m.at=0; m.sent=0; m.mode=3;
+    assert(!norn_http_init(&h,&c,&t) && norn_http_execute(&h,&q,&r)==NORN_HTTP_TRANSPORT && h.failed); m.mode=0;
+    /* Zero length: the source is never called. */
+    memset(&src,0,sizeof(src)); src.fail_after=0; src.empty=true; m.at=0; m.sent=0;
+    assert(!norn_http_set_body_source(&q,body_source,&src,0));
+    assert(!norn_http_init(&h,&c,&t) && !norn_http_execute(&h,&q,&r) && m.sent>0 && strstr((char *)m.out,"Content-Length: 0\r\n"));
+    /* Contiguous body and source exclude each other; the setters replace one another. */
+    assert(!norn_http_set_body_source(&q,body_source,&src,5)); q.body="abcde";
+    assert(norn_http_build_request(&q,requestbuf,sizeof(requestbuf),&n)==NORN_HTTP_INVALID);
+    assert(!norn_http_set_body(&q,"abcde",5) && !q.body_source && !norn_http_build_request(&q,requestbuf,sizeof(requestbuf),&n));
+    assert(!norn_http_set_body_source(&q,body_source,&src,5) && !q.body && !norn_http_build_request(&q,requestbuf,sizeof(requestbuf),&n));
+    assert(norn_http_set_body_source(&q,NULL,&src,5)==NORN_HTTP_INVALID);
+    assert(norn_http_set_body_source(NULL,body_source,&src,5)==NORN_HTTP_INVALID);
 }
 static int32_t recv_mock(void *arg,void *p,size_t n,uint32_t timeout) {
     mock *m=arg; size_t left=strlen(m->wire)-m->at; assert(timeout);
@@ -198,7 +252,7 @@ static int32_t recv_mock(void *arg,void *p,size_t n,uint32_t timeout) {
 static void transport_tests(void) {
     char linebuf[128],requestbuf[512]; uint8_t rx[128]; norn_http h; norn_http_config c;
     norn_http_request q; norn_http_response r; sink s; int mode;
-    mock m={"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc",0,0,2,UINT32_MAX-50u,0};
+    mock m={"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc",0,0,2,UINT32_MAX-50u,0,{0}};
     norn_http_transport t={&m,send_mock,recv_mock,now};
     memset(&c,0,sizeof(c)); memset(&s,0,sizeof(s));
     norn_http_parser_config_init(&c.parser,linebuf,sizeof(linebuf)); c.parser.on_body=body; c.parser.callback_context=&s;
@@ -225,8 +279,8 @@ static void transport_tests(void) {
     assert(!norn_http_execute(&h,&q,&r) && !r.reusable && !h.failed && s.n==3);
 }
 int main(void) {
-    buffer_test(); parser_tests(); boundaries(); ranges(); requests(); transport_tests();
-    printf("PASS: requests, fragmentation, framing, ranges, limits, callbacks, transport\n");
+    buffer_test(); parser_tests(); boundaries(); ranges(); requests(); transport_tests(); source_tests();
+    printf("PASS: requests, fragmentation, framing, ranges, limits, callbacks, transport, body source\n");
     printf("sizeof parser=%zu, context=%zu, request=%zu, response=%zu\n",sizeof(norn_http_parser),sizeof(norn_http),sizeof(norn_http_request),sizeof(norn_http_response));
     return 0;
 }

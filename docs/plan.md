@@ -12,7 +12,7 @@ below close items 6–10. Each step says which item it closes and what it needs.
 | 3 | coverage-guided fuzzing with libFuzzer, request-builder harness | 6 | clang | done 2026-11-10 |
 | 4 | run on a real ESP32: REST example with GET, POST, streamed GET and keep-alive over nornNET | 7, 8 | the board on /dev/ttyUSB0 | done 2026-11-10 |
 | 5 | measurements on the target: linked flash with libgcc helpers, stack high-water, static RAM | 9 | step 4 | done 2026-11-10 |
-| 6 | decide request-body streaming: implement or document as deferred | 10 | decision | open |
+| 6 | decide request-body streaming: implement or document as deferred | 10 | decision | done 2026-11-10 |
 | 7 | documentation: contracts, README validation status, nornDocs chapter, Doxygen comments | 10 | steps 2–6 | open |
 | 8 | final host suite, examples build, tag v0.1.0, point the submodule | — | steps 1–7 | open |
 
@@ -96,6 +96,15 @@ The design says it should be included if it stays simple. Either a source callba
 that fills the request buffer span by span while Content-Length is known, fed through
 the existing partial-send loop, with a test against the demo server; or a sentence in
 README and contracts.md that it is planned for the next version. Decide before 1.0.
+
+Decision 2026-11-10: included, with a known length only. `norn_http_set_body_source`
+takes a callback that fills the request buffer span by span and the total length;
+execute sends each span through the existing partial-send loop after the head.
+Chunked upload (unknown length) is documented as a possible later version, if an
+appliance needs it. Tests: every span size against a 7-byte-per-send mock, failing
+and empty sources, transport failure during the body, zero length, mutual exclusion
+with `norn_http_set_body`; the POSIX example streams a 300 000-byte pattern POST in
+the integration test; the request fuzz harness exercises the source variant.
 
 ## 7. Documentation
 

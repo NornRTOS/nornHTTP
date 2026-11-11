@@ -6,7 +6,8 @@ mutable global state, recursion or internal receive buffers. Licensed under the
 nornRTOS license in [LICENSE.md](LICENSE.md).
 
 Implemented: GET, POST, PUT, DELETE, PATCH, HEAD and OPTIONS; custom headers;
-binary request bodies; incremental response parsing; HTTP/1.1 and HTTP/1.0
+binary request bodies, contiguous or streamed from a source callback with a known
+length; incremental response parsing; HTTP/1.1 and HTTP/1.0
 responses; informational responses;
 Content-Length, chunked and connection-close framing; trailers; streaming;
 closed byte ranges; keep-alive; and a synchronous transport API with a total
@@ -82,7 +83,10 @@ if (result == NORN_HTTP_OK) {
 For REST POST, use `norn_http_add_header(&request, "Content-Type",
 "application/json")` and `norn_http_set_body(&request, json, json_length)`.
 For large downloads, replace `on_body` with a callback that writes each byte
-span to storage; no full-body buffer is needed. Check every API return value.
+span to storage; no full-body buffer is needed. For a large upload, give
+`norn_http_set_body_source` a callback that fills the request buffer span by span
+and the total length; the body never has to be in RAM as a whole. Check every API
+return value.
 The runnable [POSIX example](examples/posix_client.c) demonstrates GET, JSON POST,
 Range and streaming output, and is used by the integration test against
 `tools/demo_server.py`, which also serves the ESP32 example in nornRTOS
@@ -115,5 +119,7 @@ sizes, coverage and limitations.
 
 TLS communication is still needed before declaring the design document's complete
 stable-release criteria met; the steps are in [docs/plan.md](docs/plan.md).
-Request-body streaming is deferred; request bodies are caller-owned contiguous
-spans. No redirects, compression, cookies, HTTP/2, server, DNS or TLS engine.
+A streamed request body must have a known length; chunked upload
+(Transfer-Encoding: chunked on the request) is left for a later version if an
+appliance needs it. No redirects, compression, cookies, HTTP/2, server, DNS or TLS
+engine.

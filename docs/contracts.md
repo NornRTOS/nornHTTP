@@ -49,6 +49,18 @@ and PATCH; GET, HEAD, DELETE and OPTIONS without a body carry none. Execute
 builds/validates headers before sending any bytes, then sends the body, handling
 partial sends.
 
+A request body is either a contiguous caller-owned span (`norn_http_set_body`) or
+a body source (`norn_http_set_body_source`): a callback that fills the request
+buffer with 1..capacity bytes per call until the declared length has been sent.
+The two exclude each other; each setter replaces the other, and a request carrying
+both is INVALID. The length is declared in advance and written as Content-Length;
+there is no chunked upload. The source is first called after the head has been
+sent and is never called for a zero-length body. A negative return, zero bytes
+before the end or a count above the capacity is CALLBACK, and because bytes have
+already gone out the context is poisoned (STALE until re-init) and the connection
+must be closed. A transport failure while sending the body is reported as that
+failure, not as CALLBACK.
+
 ## Response framing and ranges
 
 HTTP/1.1 and HTTP/1.0 status lines with codes 100..599 are accepted; the reason

@@ -25,12 +25,22 @@ typedef int (*norn_http_body_fn)(void *, const uint8_t *, size_t);
 /* Views are valid only during this callback. Includes informational headers and
  * trailers; status is available through the response passed to parser_init. */
 typedef int (*norn_http_header_fn)(void *, const char *, size_t, const char *, size_t, bool trailer);
+/* Request-body source for a body that is not in RAM as a whole (a file, a sensor log).
+ * norn_http_execute calls it after the request head has been sent, with the request
+ * buffer as destination: fill 1..capacity bytes, store the count in *written and return
+ * 0. It is called until body_length bytes have been supplied; the body length must be
+ * known in advance (Content-Length), chunked upload is not offered. A negative return,
+ * zero bytes before the end or a count above capacity fails the request with
+ * NORN_HTTP_CALLBACK, which poisons the connection like any error after I/O began. */
+typedef int (*norn_http_body_source_fn)(void *, uint8_t *destination, size_t capacity, size_t *written);
 typedef struct {
     const char *method, *target, *host;
     norn_http_header *headers;
     size_t header_count, header_capacity;
-    const void *body;
-    size_t body_length;
+    const void *body;               /* contiguous body, or NULL when body_source is used */
+    size_t body_length;             /* bytes in body, or bytes body_source will supply */
+    norn_http_body_source_fn body_source;
+    void *body_source_context;
     bool close, range;
     uint64_t range_start, range_end;
 } norn_http_request;
@@ -74,6 +84,9 @@ void norn_http_request_init(norn_http_request *, const char *method, const char 
                             const char *host, norn_http_header *storage, size_t capacity);
 int norn_http_add_header(norn_http_request *, const char *, const char *);
 int norn_http_set_body(norn_http_request *, const void *, size_t);
+/* The body comes from the source span by span; length is the total (Content-Length).
+ * Replaces a body set with norn_http_set_body and vice versa. */
+int norn_http_set_body_source(norn_http_request *, norn_http_body_source_fn, void *context, size_t length);
 int norn_http_set_range(norn_http_request *, uint64_t start, uint64_t end);
 int norn_http_build_request(const norn_http_request *, char *, size_t, size_t *written);
 void norn_http_parser_config_init(norn_http_parser_config *, char *, size_t);

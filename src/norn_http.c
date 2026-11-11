@@ -26,6 +26,20 @@ static int send_all(norn_http *h, const void *data, size_t len, uint32_t start) 
     }
     return 0;
 }
+/* Streamed request body: the source fills the request buffer (free once the head has
+ * been sent) span by span, and each span goes out through the same partial-send loop. */
+static int send_source(norn_http *h, const norn_http_request *q, uint32_t start) {
+    size_t left=q->body_length;
+    while(left) {
+        size_t cap=left<h->config.request_capacity ? left : h->config.request_capacity, got=0;
+        int e;
+        if(q->body_source(q->body_source_context,(uint8_t *)h->config.request_buffer,cap,&got) ||
+           !got || got>cap) return NORN_HTTP_CALLBACK;
+        e=send_all(h,h->config.request_buffer,got,start); if(e) return e;
+        left-=got;
+    }
+    return 0;
+}
 int norn_http_execute(norn_http *h, const norn_http_request *q, norn_http_response *r) {
     size_t length; uint32_t start; int e;
     if(!h || !q || !r) return NORN_HTTP_INVALID;
@@ -35,7 +49,7 @@ int norn_http_execute(norn_http *h, const norn_http_request *q, norn_http_respon
     e=norn_http_build_request(q,h->config.request_buffer,h->config.request_capacity,&length); if(e) return e;
     start=h->transport.now_ms(h->transport.context);
     e=send_all(h,h->config.request_buffer,length,start);
-    if(!e) e=send_all(h,q->body,q->body_length,start);
+    if(!e) e=q->body_source ? send_source(h,q,start) : send_all(h,q->body,q->body_length,start);
     while(!e) {
         uint32_t left=budget(h,start); int32_t n; size_t used;
         if(!left) { e=NORN_HTTP_TIMEOUT; break; }

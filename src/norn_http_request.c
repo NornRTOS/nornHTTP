@@ -27,7 +27,11 @@ int norn_http_add_header(norn_http_request *r, const char *n, const char *v) {
 }
 int norn_http_set_body(norn_http_request *r, const void *p, size_t n) {
     if (!r || (!p && n)) return NORN_HTTP_INVALID;
-    r->body=p; r->body_length=n; return 0;
+    r->body=p; r->body_length=n; r->body_source=NULL; r->body_source_context=NULL; return 0;
+}
+int norn_http_set_body_source(norn_http_request *r, norn_http_body_source_fn f, void *ctx, size_t n) {
+    if (!r || !f) return NORN_HTTP_INVALID;
+    r->body=NULL; r->body_length=n; r->body_source=f; r->body_source_context=ctx; return 0;
 }
 int norn_http_set_range(norn_http_request *r, uint64_t a, uint64_t b) {
     if (!r || b < a || b-a == UINT64_MAX) return NORN_HTTP_INVALID;
@@ -49,7 +53,8 @@ int norn_http_build_request(const norn_http_request *r, char *p, size_t cap, siz
     size_t at=0,i; const char *s; char number[64];
     if (written) *written=0;
     if (!r || !p || !written || !r->method || !r->target || !r->host || !*r->host ||
-        (!r->body && r->body_length) || r->header_count > r->header_capacity ||
+        (!r->body && !r->body_source && r->body_length) || (r->body && r->body_source) ||
+        r->header_count > r->header_capacity ||
         (r->header_count && !r->headers)) return NORN_HTTP_INVALID;
     if (strcmp(r->method,"GET") && strcmp(r->method,"POST") && strcmp(r->method,"PUT") &&
         strcmp(r->method,"DELETE") && strcmp(r->method,"PATCH") && strcmp(r->method,"HEAD") &&

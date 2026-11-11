@@ -17,6 +17,7 @@ static const char *field(char **cursor, char *end) {
 static int token(unsigned c) {
     return (c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c!=0&&strchr("!#$%&'*+-.^_`|~",(int)c));
 }
+static int source(void *arg,uint8_t *dst,size_t cap,size_t *written) { (void)arg; (void)dst; *written=cap; return 0; }
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     static const char *methods[]={"GET","POST","PUT","DELETE","PATCH","HEAD","OPTIONS","BREW"};
     char input[512], out[1024], *cursor, *end; norn_http_header slots[8];
@@ -31,7 +32,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     norn_http_request_init(&q,method,target,host,slots,8);
     while((name=field(&cursor,end)) && (value=field(&cursor,end)))
         (void)norn_http_add_header(&q,name,value);
-    if(mode&1u) (void)norn_http_set_body(&q,body,(mode>>1)&3u ? ((mode>>1)&3u)*100u : 0u);
+    if(mode&1u) {
+        /* Bits 1-2: no body, 100 or 200 contiguous bytes, or a 300-byte body source. */
+        if(((mode>>1)&3u)==3u) (void)norn_http_set_body_source(&q,source,NULL,300u);
+        else (void)norn_http_set_body(&q,body,(mode>>1)&3u ? ((mode>>1)&3u)*100u : 0u);
+    }
     if(mode&8u) (void)norn_http_set_range(&q,mode,(uint64_t)mode*7u);
     q.close=(mode&16u)!=0;
     if(norn_http_build_request(&q,out,sizeof(out),&n)) return 0;
