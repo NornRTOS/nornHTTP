@@ -13,7 +13,7 @@ below close items 6–10. Each step says which item it closes and what it needs.
 | 4 | run on a real ESP32: REST example with GET, POST, streamed GET and keep-alive over nornNET | 7, 8 | the board on /dev/ttyUSB0 | done 2026-11-10 |
 | 5 | measurements on the target: linked flash with libgcc helpers, stack high-water, static RAM | 9 | step 4 | done 2026-11-10 |
 | 6 | decide request-body streaming: implement or document as deferred | 10 | decision | done 2026-11-10 |
-| 7 | documentation: contracts, README validation status, nornDocs chapter, Doxygen comments | 10 | steps 2–6 | open |
+| 7 | documentation: contracts, README validation status, nornDocs chapter, Doxygen comments | 10 | steps 2–6 | done 2026-11-11 |
 | 8 | final host suite, examples build, tag v0.1.0, point the submodule | — | steps 1–7 | open |
 
 ## 1. Housekeeping
@@ -112,6 +112,14 @@ Update `docs/contracts.md` and README after steps 2 and 4, rewrite "Validation s
 once the board has run, add a nornHTTP section to chapter 8 of the user guide in
 nornDocs, put `include/norn_http.h` into the nornDocs Doxyfile, and complete the
 header's documentation comments while doing so.
+
+Done 2026-11-11: `include/norn_http.h`, `norn_http_transport.h`, `norn_http_config.h`
+and the adapter header carry Doxygen comments for every type, field and function;
+the sources were reformatted in the house style (one statement per line, blank lines
+between blocks, comments on the blocks) with the generated code verified identical.
+README rewritten (layout table, validation status). nornDocs: a nornHTTP section in
+chapter 8 of the user guide (what it is, using it, what it costs), the module table
+in chapter 1, the README, and the Doxyfile reads the two headers.
 
 ## 8. Closing
 

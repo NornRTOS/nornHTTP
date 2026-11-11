@@ -7,11 +7,23 @@ nornRTOS license in [LICENSE.md](LICENSE.md).
 
 Implemented: GET, POST, PUT, DELETE, PATCH, HEAD and OPTIONS; custom headers;
 binary request bodies, contiguous or streamed from a source callback with a known
-length; incremental response parsing; HTTP/1.1 and HTTP/1.0
-responses; informational responses;
-Content-Length, chunked and connection-close framing; trailers; streaming;
-closed byte ranges; keep-alive; and a synchronous transport API with a total
-transaction deadline. A nornNET adapter is optional and lives in this module.
+length; incremental response parsing with the body streamed to a callback;
+HTTP/1.1 and HTTP/1.0 responses; informational responses; Content-Length, chunked
+and connection-close framing; trailers; closed byte ranges; keep-alive; and a
+synchronous transport API with a total transaction deadline. A nornNET adapter is
+optional and lives in this module.
+
+| Where | What |
+| --- | --- |
+| `include/norn_http.h` | the API, documented; `norn_http_transport.h` the three transport functions; `norn_http_config.h` the defaults |
+| `src/` | the parser, the request builder, the synchronous client and the body-buffer helper |
+| `adapters/` | the nornNET transport |
+| `examples/` | a POSIX client and a nornNET GET |
+| `tests/`, `tools/` | the host tests, fuzz harnesses and corpora, the demo server |
+| `docs/` | [contracts](docs/contracts.md): what an application can rely on; [measurements](docs/measurements.md): sizes, stack, coverage; [plan](docs/plan.md): the road to the first stable version |
+
+The user guide of nornRTOS (the nornDocs repository) has a nornHTTP section in its
+networking chapter, and `make api` there generates the API reference from the header.
 
 ## Build and verify
 
@@ -108,18 +120,25 @@ network task or socket event callback. See [contracts](docs/contracts.md).
 
 ## Validation status
 
-Linux unit, sanitizer, deterministic mutation, one hour of coverage-guided fuzzing
-per harness, adapter mapping and local-server tests have passed. On a real ESP32
-the nornRTOS example `examples/wifi_http` runs GET, JSON POST, a 64 KiB streamed
-download and keep-alive over nornWIFI and nornNET against `tools/demo_server.py`;
-linked there, HTTP costs 6.9 KB of flash (about 5.3 KB library), no static RAM
-beyond the 184-byte context, and at most 160 bytes more task stack than the Wi-Fi
-join and TCP connect already use. See [measurements](docs/measurements.md) for
-sizes, coverage and limitations.
+Verified on Linux: the unit tests under ASan and UBSan (every fragmentation
+boundary, every framing, limits, callbacks, the transport mock, the body source),
+100,000 deterministic parser mutations, the GCC analyzer, one hour of coverage-guided
+fuzzing per harness without a finding (99.5 % and 100 % line coverage from the kept
+corpora), the nornNET adapter against the sibling headers, and the integration test
+against `tools/demo_server.py` over HTTP/1.1 and HTTP/1.0, including a 2 MiB
+download and a 300 kB streamed upload.
 
-TLS communication is still needed before declaring the design document's complete
-stable-release criteria met; the steps are in [docs/plan.md](docs/plan.md).
-A streamed request body must have a known length; chunked upload
-(Transfer-Encoding: chunked on the request) is left for a later version if an
-appliance needs it. No redirects, compression, cookies, HTTP/2, server, DNS or TLS
-engine.
+Verified on a real ESP32 (NodeMCU-32S): the nornRTOS example `examples/wifi_http`
+runs GET, JSON POST, a 64 KiB download streamed through a 512-byte buffer with every
+byte checked, keep-alive and Connection: close over nornWIFI and nornNET. Linked
+there, HTTP costs 7.0 KB of flash (about 5.3 KB library), no static RAM beyond the
+184-byte context, and at most 160 bytes more task stack than the Wi-Fi join and TCP
+connect already use. The method and the numbers are in
+[measurements](docs/measurements.md).
+
+Not covered: no TLS session has been run (TLS is a transport the application
+supplies), and the CMake path is unexecuted here. A streamed request body must have
+a known length; chunked upload (Transfer-Encoding: chunked on the request) is left
+for a later version if an appliance needs it. No redirects, compression, cookies,
+HTTP/2, server, DNS or TLS engine. The remaining step before the first tagged
+version is in [docs/plan.md](docs/plan.md).
