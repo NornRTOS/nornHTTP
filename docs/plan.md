@@ -14,7 +14,7 @@ below close items 6–10. Each step says which item it closes and what it needs.
 | 5 | measurements on the target: linked flash with libgcc helpers, stack high-water, static RAM | 9 | step 4 | done 2026-11-10 |
 | 6 | decide request-body streaming: implement or document as deferred | 10 | decision | done 2026-11-10 |
 | 7 | documentation: contracts, README validation status, nornDocs chapter, Doxygen comments | 10 | steps 2–6 | done 2026-11-11 |
-| 8 | final host suite, examples build, tag v0.1.0, point the submodule | — | steps 1–7 | open |
+| 8 | final host suite, examples build, tag v0.1.0, point the submodule | — | steps 1–7 | done 2026-11-11 |
 
 ## 1. Housekeeping
 
@@ -126,3 +126,10 @@ in chapter 1, the README, and the Doxyfile reads the two headers.
 Run the host suite once more (`make test fuzz-smoke analyze adapter-test integration`),
 build the nornRTOS examples, tag v0.1.0 and point the nornRTOS submodule at it. The
 kernel is untouched, so the QEMU regression is not needed for this.
+
+Result (2026-11-11): the host suite passes (unit tests including the body source,
+100 000 parser mutations, adapter mapping, eleven integration cases over HTTP/1.1 and
+HTTP/1.0 including a 300 kB streamed upload). All nine nornRTOS examples build for their
+boards (eight for the ESP32, uartcheck for the Uno). ESP32 object sizes unchanged at
+595 + 3 089 + 1 754 + 62 bytes. Tag v0.1.0 on the nornHTTP commit that contains this
+paragraph; nornRTOS points its submodule at it.
