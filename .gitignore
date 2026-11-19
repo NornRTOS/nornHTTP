@@ -1,0 +1,4 @@
+/build/
+/cmake-build*/
+/local_docs/
+__pycache__/
